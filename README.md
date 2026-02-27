@@ -57,9 +57,6 @@ All libraries can be installed via the Arduino IDE
 ## Demo
 [![Demo Video](https://img.youtube.com/vi/QOcPQ9NVaQI/0.jpg)](https://youtu.be/QOcPQ9NVaQI)
 
-## Circuit Diagram
-[Schematic coming soon]
-
 ## Future Improvements
 - Attempt counter with progressive lockout (3 attempts → temporary ban)
 - Real-time clock integration for access logging with time stamps and SD card logging for audit trail
