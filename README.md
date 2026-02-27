@@ -55,7 +55,7 @@ All libraries can be installed via the Arduino IDE
 3. See the result
 
 ## Demo
-[Video coming soon]
+[![Demo Video](https://img.youtube.com/vi/QOcPQ9NVaQI/0.jpg)](https://youtu.be/QOcPQ9NVaQI)
 
 ## Circuit Diagram
 [Schematic coming soon]
