@@ -1,37 +1,29 @@
 # Multi-Factor RFID Authentication System
-
 A multi-factor security access control system built with Arduino that uses RFID card scanning with PIN verification. Features personalized for optimal user experience and session timeout protection. 
-
 ## Features
-
 **Two-Factor Authentication**: RFID card + 4-digit custom PIN verification
 **User Database**: Supports multiple users with personalized greetings
+**Welcome Screen**: Idle display prompts user to scan their card
+**3-Attempt Lockout**: Wrong PIN shows remaining attempts, locks out after 3 failures
 **Session Timeout**: 7.5-second timeout protection during PIN entry
 **Visual/Audio Feedback**: Green/Red LEDs and Buzzer tones to signal different features
 **LCD Display**: Real-time status messages and user prompts
 **Scalable Design**: Easy to add new users to the database
-
 ## Hardware
-
 - Arduino Mega 2560
 - MFRC522 RFID Reader Module
 - 4x4 Matrix Keypad
 - 16x2 LCD Display (Parallel mode)
 - Passive Buzzer, 2x LEDs (Red & Green), 2x 220Ω Resistors (for LEDs)
 - Jumper wires & Breadboard
-
 ## Software
-
 ### Arduino Libraries
 - `SPI.h` (built-in)
 - `MFRC522.h` - [RFID Library](https://github.com/miguelbalboa/rfid)
 - `Keypad.h` - [Keypad Library](https://github.com/Chris--A/Keypad)
 - `LiquidCrystal.h` (built-in)
-
 All libraries can be installed via the Arduino IDE
-
 ## Pin Configuration
-
 | Component | Arduino Pin |
 |-----------|-------------|
 | RFID SS   | 10          |
@@ -47,23 +39,17 @@ All libraries can be installed via the Arduino IDE
 | LCD D4-D7 | 9, 8, 7, 6  |
 | Keypad Rows | 22, 24, 26, 28 |
 | Keypad Cols | 30, 32, 34, 36 |
-
 ## How to use
-
 1. Upload the code to Arduino and tap your RFID card on the reader
 2. Enter the 4-digit PIN on the keypad within the time frame
 3. See the result
-
 ## Demo
 [![Demo Video](https://img.youtube.com/vi/QOcPQ9NVaQI/0.jpg)](https://youtu.be/QOcPQ9NVaQI)
-
 ## Future Improvements
-- Attempt counter with progressive lockout (3 attempts → temporary ban)
 - Real-time clock integration for access logging with time stamps and SD card logging for audit trail
-
+- Master card mode for adding/removing users without reprogramming
 ## What I learned
-
 - Embedded systems programming (Arduino/C++)
 - SPI communication protocols & multi-component hardware integration
 - State machine designing
-- Simple Security principles (two-factor authentication & timeout protection), User experience (visual/audio feedback), and Data structure implementation (structs, user database)
+- Simple Security principles (two-factor authentication, timeout protection, lockout logic), User experience (visual/audio feedback, welcome screen), and Data structure implementation (structs, user database)
