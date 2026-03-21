@@ -10,7 +10,7 @@
 - `pinSequence()` function handling full PIN entry flow with retry logic
 
 ### Changed
-- Refactored monolithic loop into separate focused functions
+- Refactored blocks of loop into separate focused functions
 - Replaced `#define` pin declarations with `const int` for proper C++ convention
 - Renamed `rowStorer` to `userIndex` for clarity
 - Changed `pinAmount` type from `char` to `const int`
