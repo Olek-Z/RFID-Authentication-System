@@ -2,27 +2,29 @@
  * Multi-Factor RFID Authentication System
  *
  * Description: Security access control system using RFID card + PIN verification
- *              with timeout protection, 3-attempt lockout, and visual/audio feedback
+ *              with timeout protection, 3-attempt lockout, visual/audio feedback,
+ *              and real-time timestamped serial logging via DS3231 RTC module.
  *
  * Author: Oleksandr Zarichnyy
- * Date: March 2026
+ * Version: 2.0.0
+ * Date: May 2026
  *
- * Hardware Requirements:
+ * Hardware:
  *   - Arduino Mega 2560
- *   - MFRC522 RFID Reader Module
- *   - 4x4 Matrix Keypad
- *   - 16x2 LCD Display
- *   - Passive Buzzer
- *   - Red and Green LEDs
+ *   - MFRC522 RFID Reader (SPI — SS pin 10, RST pin 5)
+ *   - DS3231 RTC Module (I2C — SDA pin 20, SCL pin 21)
+ *   - 4x4 Matrix Keypad (rows: 22,24,26,28 | cols: 30,32,34,36)
+ *   - 16x2 LCD Display (RS:13, EN:12, D4:9, D5:8, D6:7, D7:6)
+ *   - Passive Buzzer (pin 47)
+ *   - Red LED (pin 45), Green LED (pin 43)
  *
  * Features:
  *   - Two-factor authentication (card + PIN)
  *   - User database with personalized greeting
- *   - Welcome screen displayed on idle
  *   - 3-attempt PIN lockout with live attempt counter
  *   - Session timeout protection (7.5 seconds)
- *   - Visual feedback (LEDs) and audio feedback (buzzer)
- *   - Real-time LCD display
+ *   - Real-time timestamped CSV serial logging
+ *   - Visual (LEDs) and audio (buzzer) feedback
  */
 
 // ========== LIBRARIES ==========
@@ -30,19 +32,20 @@
 #include <Keypad.h>
 #include <MFRC522.h>
 #include <LiquidCrystal.h>
+#include "RTClib.h"
 
 // ========== PIN DEFINITIONS ==========
-const int SS_PIN = 10;
-const int RST_PIN = 5;
+const int SS_PIN     = 10;
+const int RST_PIN    = 5;
 const int BUZZER_PIN = 47;
-const int RED_LED = 45;
-const int GREEN_LED = 43;
+const int RED_LED    = 45;
+const int GREEN_LED  = 43;
 
 // ========== CONSTANTS ==========
-const unsigned long PIN_TIMEOUT = 7500;  // PIN entry timeout in milliseconds
-const byte ROWS = 4;
-const byte COLS = 4;
-const int pinAmount = 4;                // Number of digits in PIN
+const unsigned long PIN_TIMEOUT = 7500;  // Session timeout in milliseconds
+const byte ROWS      = 4;
+const byte COLS      = 4;
+const int pinAmount  = 4;               // Number of digits in PIN
 
 // ========== KEYPAD CONFIGURATION ==========
 char keys[ROWS][COLS] =
@@ -57,6 +60,7 @@ byte rowPins[ROWS] = {22, 24, 26, 28};
 byte colPins[COLS] = {30, 32, 34, 36};
 
 // ========== HARDWARE OBJECTS ==========
+RTC_DS3231 rtc;
 MFRC522 RFID(SS_PIN, RST_PIN);
 Keypad KEYPAD(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 LiquidCrystal lcd(13, 12, 9, 8, 7, 6);  // RS, EN, D4, D5, D6, D7
@@ -64,9 +68,9 @@ LiquidCrystal lcd(13, 12, 9, 8, 7, 6);  // RS, EN, D4, D5, D6, D7
 // ========== USER DATABASE ==========
 struct User
 {
-  byte cardIDS[4];  // RFID card unique identifier (4-byte UID)
-  char pins[5];     // 4-digit PIN + null terminator
-  char* name;       // Display name shown on LCD greeting
+  byte  cardIDS[4];  // 4-byte RFID card UID
+  char  pins[5];     // 4-digit PIN + null terminator
+  char* name;        // Display name shown on LCD
 };
 
 User users[] =
@@ -74,6 +78,25 @@ User users[] =
   {{0xB3, 0x29, 0xD7, 0x5}, "1234", "Alice"},  // White card
   {{0x5E, 0xEE, 0x9C, 0x4}, "ABCD", "Bob"}     // Blue tag
 };
+
+// ========== HELPER: LEADING ZERO ==========
+// Prints a leading zero for single-digit values to keep timestamps uniform
+void addZero(int value)
+{
+  if (value < 10) Serial.print("0");
+}
+
+// ========== HELPER: CSV TIMESTAMP ==========
+// Prints current time as YYYY-MM-DD, HH:MM:SS followed by a comma separator
+void timeStamp(DateTime now)
+{
+  Serial.print(now.year());  Serial.print("-");
+  addZero(now.month());      Serial.print(now.month());  Serial.print("-");
+  addZero(now.day());        Serial.print(now.day());    Serial.print(", ");
+  addZero(now.hour());       Serial.print(now.hour());   Serial.print(":");
+  addZero(now.minute());     Serial.print(now.minute()); Serial.print(":");
+  addZero(now.second());     Serial.print(now.second()); Serial.print(", ");
+}
 
 // ========== IDLE WELCOME SCREEN ==========
 // Displayed on startup and after every completed authentication attempt
@@ -86,15 +109,12 @@ void startMessage()
 }
 
 // ========== ACCESS GRANTED SEQUENCE ==========
-// Called when card + PIN are both verified successfully
+// Green LED flash + rising two-tone beep
 void accessGranted()
 {
-  Serial.println("Access granted");
-
   lcd.clear();
   lcd.print("ACCESS GRANTED");
 
-  // Rising two-tone beep + green LED flash
   tone(BUZZER_PIN, 1500);
   digitalWrite(GREEN_LED, HIGH);
   delay(150);
@@ -107,8 +127,7 @@ void accessGranted()
 }
 
 // ========== PIN VERIFICATION ==========
-// Compares entered PIN against stored PIN for the given user
-// Returns true if they match, false otherwise
+// Returns true if entered PIN matches stored PIN for the given user
 bool pinVerify(int userIndex, char* keypadEnters)
 {
   if (strcmp(users[userIndex].pins, keypadEnters) != 0)
@@ -121,61 +140,40 @@ bool pinVerify(int userIndex, char* keypadEnters)
   }
 }
 
-// ========== PIN ENTRY + 3-ATTEMPT SEQUENCE ==========
-// Prompts the user to enter their PIN up to 3 times
-// Returns true if correct PIN entered on any attempt, false if all 3 fail
-// Also handles session timeout during PIN entry
-bool pinSequence(int userIndex)
+// ========== PIN ENTRY SEQUENCE ==========
+// Prompts user for PIN up to 3 times
+// Returns: 0 = correct PIN, 1 = too many attempts, 2 = session timeout
+int pinSequence(int userIndex)
 {
-  for (int j = 0; j < 3; j++)  // j tracks current attempt (0, 1, 2)
+  for (int j = 0; j < 3; j++)
   {
-    char keypadEnters[5];  // Temp buffer to hold entered PIN + null terminator
+    char keypadEnters[5];
 
     Serial.print("User ");
     Serial.print(users[userIndex].name);
     Serial.println(" prompted for PIN");
 
-    // Display personalized greeting with PIN prompt
     lcd.clear();
     lcd.print("Hello ");
     lcd.print(users[userIndex].name);
     lcd.setCursor(0, 1);
     lcd.print("Enter Pin: ");
 
-    // Start session timeout timer
     unsigned long startTime = millis();
     char key = NO_KEY;
 
-    // Collect exactly 4 key presses from the keypad
+    // Collect exactly pinAmount key presses
     for (int i = 0; i < pinAmount; i++)
     {
-      // Wait for a key press, checking for timeout each iteration
       while (key == NO_KEY)
       {
         if (millis() - startTime > PIN_TIMEOUT)
         {
-          // User took too long — end the session
-          Serial.println("Session timeout");
-
-          lcd.clear();
-          lcd.print("SESSION EXPIRED");
-
-          tone(BUZZER_PIN, 200);
-          digitalWrite(RED_LED, HIGH);
-          delay(800);
-          noTone(BUZZER_PIN);
-          delay(1000);
-          digitalWrite(RED_LED, LOW);
-          lcd.clear();
-
-          startMessage();
-          return false;
+          return 2;  // Session timeout
         }
-
         key = KEYPAD.getKey();
       }
 
-      // Key received — mask on LCD and give audio feedback
       lcd.print("*");
       tone(BUZZER_PIN, 1500);
       delay(50);
@@ -184,9 +182,8 @@ bool pinSequence(int userIndex)
       keypadEnters[i] = key;
       key = NO_KEY;
     }
-    keypadEnters[pinAmount] = '\0';  // Null-terminate for strcmp
+    keypadEnters[pinAmount] = '\0';
 
-    // Debug: print entered PIN to serial monitor
     Serial.print("PIN entered: ");
     for (int j = 0; j < pinAmount; j++)
     {
@@ -195,19 +192,12 @@ bool pinSequence(int userIndex)
     }
     Serial.println();
 
-    // Check if entered PIN matches stored PIN
     if (pinVerify(userIndex, keypadEnters) == true)
     {
-      return true;  // Correct PIN — exit immediately
+      return 0;  // Correct PIN
     }
 
-    // Wrong PIN — if this was the last attempt, exit silently
-    if ((3 - (j + 1)) == 0)
-    {
-      return false;
-    }
-
-    // Attempts remaining — show count and loop again
+    // Wrong PIN — show remaining attempts and loop
     lcd.clear();
     lcd.print("Wrong pin");
     lcd.setCursor(0, 1);
@@ -217,12 +207,13 @@ bool pinSequence(int userIndex)
     delay(1500);
   }
 
-  return false;  // All 3 attempts exhausted
+  return 1;  // All attempts exhausted
 }
 
 // ========== SETUP ==========
 void setup()
 {
+  delay(1000);  // Suppress garbage characters on Serial startup
   Serial.begin(9600);
 
   SPI.begin();
@@ -232,12 +223,20 @@ void setup()
   lcd.clear();
 
   pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(RED_LED, OUTPUT);
-  pinMode(GREEN_LED, OUTPUT);
+  pinMode(RED_LED,    OUTPUT);
+  pinMode(GREEN_LED,  OUTPUT);
+
+  rtc.begin();
+  if (rtc.lostPower())
+  {
+    Serial.println("RTC lost power, resetting time...");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
 
   Serial.println();
+  Serial.println("----------------------");
   Serial.println("System is ready!");
-  Serial.println();
+  Serial.println("----------------------");
 
   startMessage();
 }
@@ -245,26 +244,22 @@ void setup()
 // ========== MAIN LOOP ==========
 void loop()
 {
-  // Wait for a card to be presented
-  if (!RFID.PICC_IsNewCardPresent())
-  {
-    return;
-  }
+  DateTime now = rtc.now();
+
+  if (!RFID.PICC_IsNewCardPresent()) return;
+
+  Serial.println();
   Serial.println("Card detected");
 
-  // Attempt to read the card's serial data
-  if (!RFID.PICC_ReadCardSerial())
-  {
-    return;
-  }
+  if (!RFID.PICC_ReadCardSerial()) return;
+
   Serial.println("Card read successfully!");
 
-  // Audio feedback for successful card scan
   tone(BUZZER_PIN, 1800);
   delay(100);
   noTone(BUZZER_PIN);
 
-  // Copy scanned UID into local array
+  // Read scanned UID into local array
   byte scannedArray[4];
   for (int i = 0; i < 4; i++)
   {
@@ -274,21 +269,24 @@ void loop()
   }
   Serial.println();
 
-  // Search user database for a matching card UID
+  // Search user database for matching UID
   int userIndex = -1;
   for (int i = 0; i < (sizeof(users) / sizeof(users[0])); i++)
   {
     if (memcmp(scannedArray, users[i].cardIDS, 4) == 0)
     {
-      userIndex = i;  // Store index of matched user
+      userIndex = i;
       break;
     }
   }
 
-  // Card not found in database — deny access
+  // Unknown card — deny immediately
   if (userIndex == -1)
   {
-    Serial.println("Unauthorized card");
+    timeStamp(now);
+    Serial.print("UNKNOWN");
+    Serial.print(", ");
+    Serial.println("UNAUTHORIZED");
 
     lcd.clear();
     lcd.print("UNAUTHORIZED");
@@ -305,18 +303,48 @@ void loop()
     return;
   }
 
-  // Card authorized — run PIN entry sequence (3 attempts MAX)
-  bool gotIn = pinSequence(userIndex);
+  // Known card — run PIN sequence
+  int gotIn = pinSequence(userIndex);
 
-  if (gotIn == true)
+  if (gotIn == 0)
   {
     accessGranted();
+
+    timeStamp(now);
+    Serial.print(users[userIndex].name);
+    Serial.print(", ");
+    Serial.println("GRANTED ACCESS");
+
+    startMessage();
+  }
+  else if (gotIn == 2)
+  {
+    timeStamp(now);
+    Serial.print(users[userIndex].name);
+    Serial.print(", ");
+    Serial.println("ACCESS DENIED: SESSION TIMEOUT");
+
+    lcd.clear();
+    lcd.print("ACCESS DENIED");
+    lcd.setCursor(0, 1);
+    lcd.print("SESSION EXPIRED");
+
+    tone(BUZZER_PIN, 200);
+    digitalWrite(RED_LED, HIGH);
+    delay(800);
+    noTone(BUZZER_PIN);
+    delay(1000);
+    digitalWrite(RED_LED, LOW);
+    lcd.clear();
+
     startMessage();
   }
   else
   {
-    // All attempts failed — lock out
-    Serial.println("Access denied - too many attempts");
+    timeStamp(now);
+    Serial.print(users[userIndex].name);
+    Serial.print(", ");
+    Serial.println("ACCESS DENIED: TOO MANY ATTEMPTS");
 
     lcd.clear();
     lcd.print("ACCESS DENIED");
@@ -333,5 +361,4 @@ void loop()
 
     startMessage();
   }
-
 }
