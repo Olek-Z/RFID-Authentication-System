@@ -59,9 +59,9 @@ Every access event is automatically logged to Serial in CSV format with a timest
 YYYY-MM-DD, HH:MM:SS, NAME, RESULT
 
 **Example:**
-2026-05-23, 14:32:05, Alice, GRANTED ACCESS
-2026-05-23, 14:35:11, Bob, ACCESS DENIED: TOO MANY ATTEMPTS
-2026-05-23, 14:37:42, UNKNOWN, UNAUTHORIZED
+- 2026-05-23, 14:32:05, Alice, GRANTED ACCESS
+- 2026-05-23, 14:35:11, Bob, ACCESS DENIED: TOO MANY ATTEMPTS
+- 2026-05-23, 14:37:42, UNKNOWN, UNAUTHORIZED
 
 ## How to Use
 1. Upload the code to your Arduino Mega
