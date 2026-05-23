@@ -2,15 +2,17 @@
 A multi-factor security access control system built with Arduino that uses RFID card scanning combined with PIN verification and real-time timestamped access logging.
 
 ## Features
-**Two-Factor Authentication**: RFID card + 4-digit custom PIN verification
-**User Database**: Supports multiple users with personalized greetings
-**Welcome Screen**: Idle display prompts user to scan their card
-**3-Attempt Lockout**: Wrong PIN shows remaining attempts, locks out after 3 failures
-**Session Timeout**: 7.5-second timeout protection during PIN entry
-**Visual/Audio Feedback**: Green/Red LEDs and buzzer tones signal different outcomes
-**LCD Display**: Real-time status messages and user prompts
-**Timestamped Serial Logging**: Every access event logged in CSV format with date and time via DS3231 RTC
-**Scalable Design**: Easy to add new users to the database
+**Two-Factor Authentication** — RFID card scan followed by 4-digit PIN, both required for access
+
+**Lockout Protection** — wrong PIN shows remaining attempts, hard lock after 3 failures
+
+**Session Timeout** — 7.5 second window for PIN entry, auto-expires if exceeded
+
+**Timestamped Access Logging** — every event logged in CSV format with date and time via DS3231 RTC
+
+**Multi-User Database** — multiple users with unique cards, PINs, and personalized greetings
+
+**Real-Time Feedback** — green/red LEDs, buzzer tones, and LCD messages guide the user at every step
 
 ## Hardware
 - Arduino Mega 2560
@@ -51,12 +53,15 @@ All libraries can be installed via the Arduino IDE Library Manager.
 | Keypad Cols | 30, 32, 34, 36 |
 
 ## Serial Log Format
-Every access event is printed to Serial in CSV format:
-- YYYY-MM-DD, HH:MM:SS, NAME, RESULT
-# Example output:
-- 2026-05-23, 14:32:05, Alice, GRANTED ACCESS
-- 2026-05-23, 14:35:11, Bob, ACCESS DENIED: TOO MANY ATTEMPTS
-- 2026-05-23, 14:37:42, UNKNOWN, UNAUTHORIZED
+Every access event is automatically logged to Serial in CSV format with a timestamp, username, and result. This creates a running audit trail for the session that can later be routed to an SD card for permanent storage.
+
+**Format:**
+YYYY-MM-DD, HH:MM:SS, NAME, RESULT
+
+**Example:**
+2026-05-23, 14:32:05, Alice, GRANTED ACCESS
+2026-05-23, 14:35:11, Bob, ACCESS DENIED: TOO MANY ATTEMPTS
+2026-05-23, 14:37:42, UNKNOWN, UNAUTHORIZED
 
 ## How to Use
 1. Upload the code to your Arduino Mega
