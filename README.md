@@ -72,7 +72,7 @@ YYYY-MM-DD, HH:MM:SS, NAME, RESULT
 ## Demo
 [![Demo Video](https://img.youtube.com/vi/QOcPQ9NVaQI/0.jpg)](https://youtu.be/QOcPQ9NVaQI)
 
-*Note: Demo shows v1.x — v2.0 footage coming soon.*
+*Note: Demo shows v1.1 — v2.0 footage coming soon.*
 
 ## Future Improvements
 - SD card logging for permanent audit trail (hardware purchased, in progress)
